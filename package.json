@@ -6,10 +6,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KKinsz/pi-tab-title.git"
+    "url": "git+https://github.com/lukeinx/pi-tab-title.git"
   },
-  "homepage": "https://github.com/KKinsz/pi-tab-title#readme",
-  "bugs": { "url": "https://github.com/KKinsz/pi-tab-title/issues" },
+  "homepage": "https://github.com/lukeinx/pi-tab-title#readme",
+  "bugs": { "url": "https://github.com/lukeinx/pi-tab-title/issues" },
   "keywords": ["pi-package", "pi-extension", "terminal", "tab-title", "session-title", "osc", "title"],
   "engines": { "node": ">=22.19.0" },
   "files": ["index.ts", "README.md", "LICENSE"],

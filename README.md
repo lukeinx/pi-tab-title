@@ -33,7 +33,7 @@ pi install npm:pi-tab-title
 Or straight from GitHub:
 
 ```sh
-pi install git:github.com/KKinsz/pi-tab-title
+pi install git:github.com/lukeinx/pi-tab-title
 ```
 
 Then reload inside Pi:
@@ -141,7 +141,7 @@ A short title is not a small bill. Naming requests may be billed, and their usag
 ## Development
 
 ```sh
-git clone https://github.com/KKinsz/pi-tab-title.git
+git clone https://github.com/lukeinx/pi-tab-title.git
 cd pi-tab-title
 npm ci
 npm run check
