@@ -141,12 +141,14 @@ test('network failure retries once at most, generic notification only', async ()
   assert.equal(h.calls.length, 2); assert.equal(h.notices.length, 1);
   assert.ok(!JSON.stringify(h.notices).includes('sensitive'));
 });
-test('English words count as one character each in the length check', async () => {
-  const h = harness({ complete: async () => answer('Kubernetes 集群排障') }); await h.start(); await h.round();
-  assert.equal(h.name(), 'Kubernetes 集群排障');
+test('titles in any language and length are accepted, only sanitized', async () => {
+  for (const [text, title] of [['Login flow triage', 'Login flow triage'], ['这是一个超过十个字的中文标题', '这是一个超过十个字的中文标题'], ['\n标题\n解释', '标题'], ['\x1b]2;x\x07“Anmeldung prüfen”', 'Anmeldung prüfen']]) {
+    const h = harness({ complete: async () => answer(text) }); await h.start(); await h.round();
+    assert.equal(h.name(), title);
+  }
 });
-test('invalid or incomplete model title is rejected after the single retry', async () => {
-  for (const result of [answer('An English title'), answer('这是一个超过十个字的中文标题'), answer('标题\n解释'), answer('登录界面', 'length')]) {
+test('empty or incomplete model title is rejected after the single retry', async () => {
+  for (const result of [answer('  '), answer('\x1b[0m'), answer('登录界面', 'length')]) {
     const h = harness({ complete: async () => result }); await h.start(); await h.round();
     assert.equal(h.titles.length, 0); assert.equal(h.entries.filter(e => e.type === 'custom').at(-1).data.status, 'failed');
   }

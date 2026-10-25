@@ -2,7 +2,7 @@
 
 A [Pi](https://pi.dev) extension that names each session automatically and shows task state in the terminal tab, so a wall of open tabs stays readable.
 
-On the first prompt of a session it asks a naming model for a short title and applies it to both the **terminal tab title** and the **Pi session name** — in parallel with the main task, without waiting for the first answer. While the agent works, the title carries an animated braille spinner; a failed turn shows `×`, a completed turn `·`.
+On the first prompt of a session it asks a naming model for a short title, in the language of that prompt, and applies it to both the **terminal tab title** and the **Pi session name** — in parallel with the main task, without waiting for the first answer. While the agent works, the title carries an animated braille spinner; a failed turn shows `×`, a completed turn `·`.
 
 Uses only public Pi extension APIs. No AppleScript, no window lookup, no terminal configuration changes.
 
