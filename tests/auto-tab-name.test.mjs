@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import extension, { cleanTitle, textOnly } from '../index.ts';
+import extension, { cleanTitle, textOnly, titleMaxTokens } from '../index.ts';
 import { isolateConfig } from './isolated-config.mjs';
 isolateConfig();
+process.env.PI_TAB_TITLE_RETRY_MS = '1';
 const flush = () => new Promise(resolve => setTimeout(resolve, 15));
 const ENTRY = 'auto-tab-name:v1';
 const answer = (text = '移动登录设计', stopReason = 'stop') => ({ role: 'assistant', stopReason, content: [{ type: 'text', text }] });
@@ -128,13 +129,23 @@ test('tree navigation preserves existing name and never re-arms', async () => {
   await h.emit('session_tree'); await h.round('新分支');
   assert.equal(h.calls.length, 1); assert.equal(h.titles.at(-1), '移动登录设计');
 });
-test('network failure is one-shot, generic notification only', async () => {
+test('transient failure is retried once and then succeeds silently', async () => {
+  let n = 0;
+  const h = harness({ complete: async () => { if (n++ === 0) throw Error('ECONNRESET'); return answer(); } });
+  await h.start(); await h.round();
+  assert.equal(h.calls.length, 2); assert.equal(h.name(), '移动登录设计'); assert.equal(h.notices.length, 0);
+});
+test('network failure retries once at most, generic notification only', async () => {
   const h = harness({ complete: async () => { throw Error('sensitive auth value'); } });
   await h.start(); await h.round(); await h.round();
-  assert.equal(h.calls.length, 1); assert.equal(h.notices.length, 1);
+  assert.equal(h.calls.length, 2); assert.equal(h.notices.length, 1);
   assert.ok(!JSON.stringify(h.notices).includes('sensitive'));
 });
-test('invalid or incomplete model title is rejected without auto retry', async () => {
+test('English words count as one character each in the length check', async () => {
+  const h = harness({ complete: async () => answer('Kubernetes 集群排障') }); await h.start(); await h.round();
+  assert.equal(h.name(), 'Kubernetes 集群排障');
+});
+test('invalid or incomplete model title is rejected after the single retry', async () => {
   for (const result of [answer('An English title'), answer('这是一个超过十个字的中文标题'), answer('标题\n解释'), answer('登录界面', 'length')]) {
     const h = harness({ complete: async () => result }); await h.start(); await h.round();
     assert.equal(h.titles.length, 0); assert.equal(h.entries.filter(e => e.type === 'custom').at(-1).data.status, 'failed');
@@ -168,13 +179,19 @@ test('a new runtime starts clean and each tab is isolated', async () => {
   await first.commands.tabname.handler('第一个标签', first.ctx); await second.round();
   assert.equal(first.name(), '第一个标签'); assert.equal(second.name(), '移动登录设计');
 });
-test('prompt bounded to 1000 chars; no answer; deadline, low reasoning and isolated affinity', async () => {
+test('prompt bounded to 500 chars; no answer; deadline, thinking off and isolated affinity', async () => {
   const h = harness(); await h.start(); await h.round('中'.repeat(10_000), answer('文'.repeat(10_000)));
   const [, context, options] = h.calls[0];
   const data = JSON.parse(context.messages[0].content);
-  assert.equal(data.user.length, 1000); assert.deepEqual(Object.keys(data), ['user']);
+  assert.equal(data.user.length, 500); assert.deepEqual(Object.keys(data), ['user']);
   assert.equal(options.maxTokens, 1024); assert.ok(options.signal); assert.ok(options.sessionId);
-  assert.equal(options.reasoningEffort, 'low'); assert.equal(options.cacheRetention, 'none');
+  assert.equal(options.reasoningEffort, undefined); assert.equal(options.cacheRetention, 'none');
+});
+test('output limit widens only for reasoning models without a light thinking level', () => {
+  assert.equal(titleMaxTokens({ reasoning: false }), 1024);
+  assert.equal(titleMaxTokens({ reasoning: true }), 1024);
+  assert.equal(titleMaxTokens({ reasoning: true, thinkingLevelMap: { off: null, minimal: null } }), 1024);
+  assert.equal(titleMaxTokens({ reasoning: true, thinkingLevelMap: { off: null, minimal: null, low: null } }), 2048);
 });
 test('no usable naming model fails once instead of silently using another model', async () => {
   const h = harness();
@@ -216,11 +233,22 @@ test('confirmed tool rename wins over a late auto response while dialog is open'
   resolveConfirm(true); assert.equal((await result).details.renamed, true);
   assert.equal(h.name(), '手动工具优先');
 });
-test('restored failed/skipped state never retries automatically', async () => {
-  for (const status of ['failed', 'skipped']) {
-    const h = harness({ entries: [{ type: 'custom', customType: ENTRY, data: { version: 1, status } }] });
-    await h.start(); await h.round(); assert.equal(h.calls.length, 0);
+test('restored skipped, titled-failed or already-retried state never retries automatically', async () => {
+  for (const data of [{ status: 'skipped' }, { status: 'failed', title: '旧标题' }, { status: 'failed', retried: true }]) {
+    const h = harness({ entries: [user('历史首问'), { type: 'custom', customType: ENTRY, data: { version: 1, ...data } }] });
+    await h.start(); await flush(); assert.equal(h.calls.length, 0);
   }
+});
+test('reopening a failed untitled session retries once and records it', async () => {
+  const failed = () => [user('历史首问'), { type: 'custom', customType: ENTRY, data: { version: 1, status: 'failed', source: 'auto' } }];
+  const ok = harness({ entries: failed() });
+  await ok.start(); assert.equal(ok.calls.length, 0);
+  await flush(); assert.equal(ok.calls.length, 1); assert.equal(ok.name(), '移动登录设计');
+  const bad = harness({ entries: failed(), complete: async () => { throw Error('x'); } });
+  await bad.start(); await flush();
+  assert.equal(bad.calls.length, 2);
+  const last = bad.entries.filter(e => e.type === 'custom').at(-1).data;
+  assert.equal(last.status, 'failed'); assert.equal(last.retried, true);
 });
 test('restored pending state can be explicitly retried', async () => {
   const h = harness({ entries: [user('重试首问'), { type: 'custom', customType: ENTRY, data: { version: 1, status: 'pending' } }] });

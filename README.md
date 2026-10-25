@@ -61,7 +61,7 @@ Use either the package or the manual file, **not both**, or commands and the too
 | `/tabname Login flow triage` | Sets the title immediately; no model call |
 | `/tabname auto` | Regenerates once from the first user text of the current branch |
 | `/tabname` | Shows the current title and usage |
-| `/tabmodel` | Picks a naming model from the credentialed models in Pi; saved globally |
+| `/tabmodel` | Picks a naming model in Pi's model selector (search and scrolling); saved globally |
 | `/tabmodel provider/model-id` | Sets an exact naming model; the ID may contain `/` |
 | `/tabmodel current` | Pins the session model at the time of the command |
 | `/tabmodel show` | Shows the current naming model and config path |
@@ -79,7 +79,7 @@ By default the extension uses the model of the current session. If that model is
 /tabmodel
 ```
 
-The list comes from Pi's available-model snapshot (credentialed models — not a guarantee that the remote service is reachable). The choice is saved to `~/.pi/agent/pi-tab-title.json` (or `$PI_CODING_AGENT_DIR/pi-tab-title.json` if that variable is set):
+The picker is Pi's own `/model` selector, with search and scrolling; if it can't be shown (for example after an incompatible Pi update), a plain list is used instead. Models come from Pi's available-model snapshot (credentialed models — not a guarantee that the remote service is reachable). The choice is saved to `~/.pi/agent/pi-tab-title.json` (or `$PI_CODING_AGENT_DIR/pi-tab-title.json` if that variable is set):
 
 ```json
 {
@@ -114,21 +114,21 @@ Only the provider and model identifier are stored — credentials and gateway UR
 
 ## Behavior notes
 
-- **One-shot:** a `pending` marker is persisted before the network call, so a failure, crash, or reload never auto-retries.
+- **Bounded retries:** a transient failure is retried once after a short pause. An unavailable model, a broken config, cancellation, or a timeout is final. A `pending` marker is persisted before the network call, so a crash or reload never re-issues it.
 - **Manual wins:** a manual rename cancels the in-flight request, and a late result cannot overwrite it.
 - **Session isolation:** requests from a previous session or runtime cannot write into the current one. Branch navigation does not re-open automatic naming.
-- **No backfill:** resumed sessions keep their saved title; older sessions without one are not named automatically.
+- **No backfill:** resumed sessions keep their saved title; older sessions without one are not named automatically. The one exception: a session whose naming failed and still has no title gets a single extra attempt the next time it is opened.
 - **Non-blocking:** the request starts in `before_agent_start` and never waits for the assistant. Cancelling the main task does not necessarily cancel a naming request already in flight.
 - **TUI only:** print, JSON, and RPC modes write no title, persist no state, and send no request.
 - **Empty input skipped:** an image-only or whitespace first prompt is skipped and not retried later.
 
 ## Data and cost
 
-Automatic naming sends the naming system prompt plus the first **1,000** characters of the first user text to the naming model. Un-expanded interactive input is preferred over skill/template-expanded bodies; `/tabname auto` reads the first user text from the current branch.
+Automatic naming sends the naming system prompt plus the first **500** characters of the first user text to the naming model. Un-expanded interactive input is preferred over skill/template-expanded bodies; `/tabname auto` reads the first user text from the current branch.
 
-No assistant replies, tool output, images, or main system prompt are attached. **Input is not redacted:** if those 1,000 characters contain a secret, it may be sent — decide based on the data policy of the model you select. The resulting title is stored as the Pi session name and shown in the terminal, so check before sharing screenshots.
+No assistant replies, tool output, images, or main system prompt are attached. **Input is not redacted:** if those 500 characters contain a secret, it may be sent — decide based on the data policy of the model you select. The resulting title is stored as the Pi session name and shown in the terminal, so check before sharing screenshots.
 
-Request parameters: up to 1,024 output tokens; `low` reasoning effort when the model supports reasoning (clamped to the model's capability); a 25-second deadline; `cacheRetention: none`. Cancellation is forwarded to the provider, though whether it stops immediately is up to the provider.
+Request parameters: no reasoning effort is requested (thinking off; in testing `low` took 5–6 s and often produced an empty title); up to 1,024 output tokens, or 2,048 for reasoning models that only support medium or higher thinking; a 25-second deadline; `cacheRetention: none`. A retried request is a second billable call. Cancellation is forwarded to the provider, though whether it stops immediately is up to the provider.
 
 A short title is not a small bill. Naming requests may be billed, and their usage is not included in Pi's session footer. A provider reporting `cost=0` does not prove it was free.
 
@@ -148,7 +148,7 @@ npm run check
 ```
 
 - `npm run typecheck` — TypeScript check against the Pi 0.85.1 API.
-- `npm test` — 64 offline tests over mock Pi contexts, mock model responses, and an isolated temp config dir. No credentials are read, no real model is called, and the current terminal and session are untouched.
+- `npm test` — 71 offline tests over mock Pi contexts, mock model responses, and an isolated temp config dir. No credentials are read, no real model is called, and the current terminal and session are untouched.
 - Coverage includes the one-shot rule, non-blocking start, manual-rename precedence, confirmation-dialog races, non-TUI modes, config corruption and failed saves, in-flight cancellation, picker races, animation lifecycle, retry recovery, tool-error recovery, truncation, compaction failure, and multi-session isolation.
 - These tests are not a substitute for a real model, real Pi lifecycle, or GUI end-to-end verification.
 
@@ -157,6 +157,7 @@ index.ts                        Extension entry (no build step)
 tests/auto-tab-name.test.mjs    Automatic naming regressions
 tests/tab-status.test.mjs       Status icon regressions
 tests/tab-model.test.mjs        Naming model config regressions
+tests/tab-picker.test.mjs       Model selector and fallback regressions
 tests/isolated-config.mjs       Test config isolation
 package.json                    Pi package manifest
 tsconfig.json                   Type-check config
