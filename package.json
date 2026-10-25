@@ -1,6 +1,6 @@
 {
   "name": "pi-tab-title",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Automatic session titles and task status icons in the terminal tab, for the Pi coding agent.",
   "type": "module",
   "license": "MIT",
@@ -9,11 +9,31 @@
     "url": "git+https://github.com/lukeinx/pi-tab-title.git"
   },
   "homepage": "https://github.com/lukeinx/pi-tab-title#readme",
-  "bugs": { "url": "https://github.com/lukeinx/pi-tab-title/issues" },
-  "keywords": ["pi-package", "pi-extension", "terminal", "tab-title", "session-title", "osc", "title"],
-  "engines": { "node": ">=22.19.0" },
-  "files": ["index.ts", "README.md", "LICENSE"],
-  "pi": { "extensions": ["./index.ts"] },
+  "bugs": {
+    "url": "https://github.com/lukeinx/pi-tab-title/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "terminal",
+    "tab-title",
+    "session-title",
+    "osc",
+    "title"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit",
@@ -25,9 +45,15 @@
     "typebox": "*"
   },
   "peerDependenciesMeta": {
-    "@earendil-works/pi-ai": { "optional": true },
-    "@earendil-works/pi-coding-agent": { "optional": true },
-    "typebox": { "optional": true }
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "0.85.1",
